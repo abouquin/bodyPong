@@ -195,7 +195,7 @@ class Balloon {
 // --- ML5.js Required Functions ---
 
 function preload() {
-    bodyPose = ml5.bodyPose("MoveNet", { flipped: true });
+    bodyPose = ml5.bodyPose("MoveNet");
 
     gameOverSound = loadSound('sounds/dondon.mp3');
     startSound = loadSound('sounds/button17.mp3');
@@ -210,39 +210,50 @@ function gotPoses(results) {
 }
 
 function setup() {
-    // Set up the canvas dimensions using the factor
-    // const canvasWidth = 640 * vfactor;
-    // const canvasHeight = 480 * vfactor;
-    createCanvas(windowWidth, windowHeight);
+    createCanvas(640, 480);
 
-    // Scale constants dynamically
-    BALLOON_RADIUS = width * 0.025;
-    HAND_HIT_RADIUS = width * 0.03;
-
-    GOAL_TOP = height * 0.25;
-    GOAL_BOTTOM = height * 0.75;
-    GOAL_HEIGHT = GOAL_BOTTOM - GOAL_TOP;
-
-    // Initialize video capture
     video = createCapture(VIDEO, { flipped: true }, () => {
-        // This callback runs once the camera is ready
         cameraReady = true;
+
+        // Get camera resolution
+        const vw = video.width;
+        const vh = video.height;
+        const videoAspect = vw / vh;
+        const windowAspect = windowWidth / windowHeight;
+
+        let newWidth, newHeight;
+
+        // Fit the video inside the window while preserving aspect ratio
+        if (videoAspect > windowAspect) {
+            // Camera is wider than window
+            newWidth = windowWidth;
+            newHeight = windowWidth / videoAspect;
+        } else {
+            // Camera is taller or same ratio
+            newHeight = windowHeight;
+            newWidth = windowHeight * videoAspect;
+        }
+
+        resizeCanvas(newWidth, newHeight);
+
+        // Optionally scale video down too
+        video.size(newWidth, newHeight);
+
+        // Scale constants dynamically
+        BALLOON_RADIUS = width * 0.025;
+        HAND_HIT_RADIUS = width * 0.03;
+
+        GOAL_TOP = height * 0.25;
+        GOAL_BOTTOM = height * 0.75;
+        GOAL_HEIGHT = GOAL_BOTTOM - GOAL_TOP;
+
+        bodyPose.detectStart(video, gotPoses);
+        connections = bodyPose.getSkeleton();
+        balloon = new Balloon(width / 2, height / 2, BALLOON_RADIUS);
+
+        console.log("Game setup complete. Ready to detect poses.");
     });
-
-    video.size(windowWidth, windowHeight);
     video.hide();
-
-    // Start pose detection
-    bodyPose.detectStart(video, gotPoses);
-
-    // Retrieve skeleton connections
-    connections = bodyPose.getSkeleton();
-
-    // Initialize the balloon in the center of the canvas
-    balloon = new Balloon(width / 2, height / 2, BALLOON_RADIUS);
-
-    // Log setup successful
-    console.log("Game setup complete. Ready to detect poses.");
 }
 
 function draw() {
@@ -325,7 +336,7 @@ function draw() {
 
                 // Skip face points entirely
                 if (FACE_POINTS.includes(keypoint.name)) continue;
-                
+
                 if (keypoint.confidence > 0.05) {
                     // Highlight the wrists to show the collision point
                     if (keypoint.name === 'left_wrist' || keypoint.name === 'right_wrist') {
